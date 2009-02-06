@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: steamroller
+Version: 0.0dev
+Summary: tools to help with working with paver
+Home-page: http://docs.opengeo.org
+Author: whit
+Author-email: whit@opengeo.org
+License: MIT
+Description: UNKNOWN
+Keywords: disutils build
+Platform: UNKNOWN
