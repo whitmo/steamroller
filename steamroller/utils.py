@@ -18,7 +18,7 @@ def add_to_sys_path(package):
         if path.startswith(package):
             newpath = site_packages_dir+path
             if path.endswith('.egg-link'):
-                newpath = open(newpath).readline().strip()
+                newpath = open(newpath).readline().strip() 
             sys.path.append(newpath)
             working_set.add_entry(newpath)
             
