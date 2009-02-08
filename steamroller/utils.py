@@ -13,11 +13,15 @@ def get_pip_path():
     return os.path.join(sys.prefix, 'bin', 'pip')
 
 def add_to_sys_path(package):
-    site_packages_dir = get_site_packages_dir()
+    site_packages_dir = os.path.dirname(os.__file__) +'/site-packages/'
     for path in os.listdir(site_packages_dir):
         if path.startswith(package):
-            sys.path.append(site_packages_dir+path)
-            working_set.add_entry(site_packages_dir+path)
+            newpath = site_packages_dir+path
+            if path.endswith('.egg-link'):
+                newpath = open(newpath).readline().strip()
+            sys.path.append(newpath)
+            working_set.add_entry(newpath)
+            
             return
         
 def egg_distribution(egg_path):
