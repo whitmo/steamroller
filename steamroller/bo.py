@@ -1,6 +1,12 @@
-from steamroller.utils import get_site_packages_dir
+from steamroller.utils import get_site_packages_dir, ConfigMap
+from steamroller.utils import get_pip_path
+from paver.defaults import sh
+from paver.runtime import debug
 from functools import partial
+import pkg_resources
 import sys
+import os
+import shutil
 
 def create_fake_buildout():
     root = sys.prefix
@@ -71,7 +77,74 @@ class BuildoutCfg(object):
         self.configmap = configmap
         
     def section_get(self, section):
-        return partial(self, self.configmap.parser.get, section)
+        return partial(self.configmap.parser.get, section)
 
     def section_dict(self, section, vars=None):
         return dict(self.configmap.get(section, vars=vars))
+
+    @classmethod
+    def loadfn(cls, fn):
+        return cls(ConfigMap.load(fn))
+
+def hexagonit_cmmi(section, buildoutcfg):
+    section_dict = buildoutcfg.section_dict(section)
+    root = sys.prefix
+    install_dir = os.path.join(root, 'lib', section)
+    comp_dir = install_dir + "__compile__"
+    if os.path.exists(comp_dir):
+        shutil.rmtree(comp_dir)
+    if os.path.exists(install_dir):
+        debug("Remove %s if you need to reinstall %s" %(install_dir, section))
+    else:
+        fake_buildout = create_fake_buildout()
+        from hexagonit.recipe.cmmi import Recipe
+        spi_opt = buildoutcfg.section_get('libspatialindex')
+        options = dict(url=spi_opt('url'))
+
+        recipe = Recipe(fake_buildout, section, options)
+        recipe.options['location']=install_dir
+        recipe.options['prefix']=install_dir
+        recipe.options['compile-directory']=comp_dir
+        
+        recipe.install()
+
+def custom_egg_brute_install(section, bocfg, mod_buildout=None):
+    """
+    Hack to install packages that may have extensions issues when
+    installing.  Reads a zc.recipe.egg:custom buildout section to
+    figure out what to do.
+
+    Example buildout config::
+    
+    [install_it]
+    recipe = zc.recipe.egg:custom
+    egg = SomePkg
+    include-dirs = ${c_dependency:location}/include
+    library-dirs = ${c_dependency:location}/lib
+    rpath = ${c_dependency:location}/lib
+    libraries = c_dependency
+    """
+
+    section_dict = bocfg.section_dict(section)
+    pkgname = section_dict['egg']
+    fake_buildout = create_fake_buildout()
+    if callable(mod_buildout):
+        fake_buildout = mod_buildout(fake_buildout)
+
+    #@@ buildout must have some sort of req parser???
+    rec_klass = pkg_resources.load_entry_point("zc.recipe.egg", 'zc.buildout', 'custom')
+
+    POpts = make_POpts()
+    opts = POpts(fake_buildout, section, section_dict)
+    recipe = rec_klass(fake_buildout, section, opts)
+
+    sh(get_pip_path() + " install --no-install %s" %pkgname)
+    pkg_src = os.path.join(sys.prefix, 'build', pkgname)
+    setup_cfg = os.path.join(pkg_src, 'setup.cfg')
+
+    import setuptools.command.setopt
+    setuptools.command.setopt.edit_config(setup_cfg, dict(build_ext=recipe.build_ext))
+
+    sh('cd %s; %s setup.py install' %(pkg_src, sys.executable))
+
+
